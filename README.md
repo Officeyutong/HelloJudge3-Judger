@@ -2,7 +2,7 @@
 
 # HelloJudge3-Judger
 
-HJ3评测器，兼容HJ2的通信协议。
+HJ3评测器，由Rust强力驱动，兼容HJ2的通信协议。
 
 预计移除对Python的依赖，并大大提升评测性能。
 
