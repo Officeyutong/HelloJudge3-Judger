@@ -17,6 +17,7 @@ pub struct ExtraJudgeConfig {
     pub submit_answer: bool,
     // in base64
     pub answer_data: Option<String>,
+    pub time_scale: Option<f64>,
 }
 #[derive(Deserialize, Debug, Clone, Serialize)]
 pub struct SubmissionInfo {

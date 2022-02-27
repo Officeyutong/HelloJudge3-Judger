@@ -11,3 +11,25 @@ pub struct LanguageConfig {
     pub ace_mode: String,
     pub hljs_mode: String,
 }
+
+impl LanguageConfig {
+    pub fn source(&self, n: &str) -> String {
+        return self.source_file.replace("{filename}", n);
+    }
+    pub fn output(&self, n: &str) -> String {
+        return self.output_file.replace("{filename}", n);
+    }
+    pub fn compile_s(&self, source: &str, output: &str, extra: &str) -> String {
+        return self
+            .compile
+            .replace("{source}", source)
+            .replace("{output}", output)
+            .replace("{extra}", extra);
+    }
+    pub fn run_s(&self, program: &str, redirect: &str) -> String {
+        return self
+            .run
+            .replace("{program}", program)
+            .replace("{redirect}", redirect);
+    }
+}
