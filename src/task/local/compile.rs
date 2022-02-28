@@ -2,7 +2,10 @@ use std::path::Path;
 
 use crate::{
     core::{
-        misc::ResultType, model::LanguageConfig, runner::docker::execute_in_docker, state::AppState,
+        misc::ResultType,
+        model::LanguageConfig,
+        runner::docker::{execute_in_docker, ExecuteResult},
+        state::AppState,
     },
     task::local::{model::SubmissionJudgeResult, util::update_status, DEFAULT_PROGRAM_FILENAME},
 };
@@ -10,6 +13,10 @@ use crate::{
 use super::model::{ExtraJudgeConfig, ProblemInfo, SubmissionInfo};
 use anyhow::anyhow;
 use log::{error, info};
+pub struct CompileResult {
+    pub execute_result: ExecuteResult,
+    pub compile_error: bool,
+}
 pub async fn compile_program(
     app: &AppState,
     working_dir: &Path,
@@ -19,7 +26,8 @@ pub async fn compile_program(
     problem_data: &ProblemInfo,
     this_problem_path: &Path,
     extra_config: &ExtraJudgeConfig,
-) -> ResultType<()> {
+    default_status: &SubmissionJudgeResult,
+) -> ResultType<CompileResult> {
     update_status(
         app,
         &sub_info.judge_result,
@@ -52,8 +60,8 @@ pub async fn compile_program(
         &app.config.docker_image,
         working_dir.to_str().ok_or(anyhow!("?"))?,
         &compile_cmdline,
-        512 * 1024 * 1024,
-        extra_config.compile_time_limit,
+        2048 * 1024 * 1024,
+        extra_config.compile_time_limit * 1000,
         extra_config.compile_result_length_limit as usize,
     )
     .await
@@ -80,17 +88,16 @@ pub async fn compile_program(
         )
         .await;
         error!("Failed to compile!\n{}", execute_result.output);
-        return Ok(());
+        return Ok(CompileResult {
+            compile_error: true,
+            execute_result,
+        });
     } else {
-        update_status(
-            app,
-            &SubmissionJudgeResult::default(),
-            "Compile successfully",
-            None,
-            sid,
-        )
-        .await;
+        update_status(app, default_status, "Compile successfully", None, sid).await;
     }
 
-    return Ok(());
+    return Ok(CompileResult {
+        compile_error: false,
+        execute_result,
+    });
 }

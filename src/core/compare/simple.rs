@@ -11,9 +11,9 @@ pub struct SimpleLineComparator;
 impl Comparator for SimpleLineComparator {
     async fn compare(
         &self,
-        user_out: Arc<[u8]>,
-        answer: Arc<[u8]>,
-        _input_data: Arc<[u8]>,
+        user_out: Arc<Vec<u8>>,
+        answer: Arc<Vec<u8>>,
+        _input_data: Arc<Vec<u8>>,
         full_score: i64,
     ) -> ResultType<CompareResult> {
         let resp = tokio::task::spawn_blocking(move || compare(&user_out, &answer, full_score))

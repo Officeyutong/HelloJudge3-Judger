@@ -54,6 +54,15 @@ pub struct SubmissionTestcaseResult {
     pub status: String,
     pub time_cost: i64,
 }
+impl SubmissionTestcaseResult {
+    pub fn update(&mut self, status: &str, message: &str) {
+        self.status = status.to_string();
+        self.message = message.to_string();
+    }
+    pub fn update_status(&mut self, status: &str) {
+        self.status = status.to_string();
+    }
+}
 #[derive(Deserialize, Debug, Clone, Serialize)]
 pub struct SubmissionSubtaskResult {
     pub score: i64,
@@ -88,6 +97,7 @@ pub struct ProblemTestcase {
 }
 #[derive(Deserialize, Debug, Clone, Serialize)]
 pub struct ProblemSubtask {
+    pub time_limit: i64,
     pub memory_limit: i64,
     pub method: String,
     pub name: String,

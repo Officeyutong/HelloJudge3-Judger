@@ -2,3 +2,8 @@
 config.yaml
 logs
 testdata
+test.json
+test2.json
+cat-err.txt
+cat.txt
+backup.txt

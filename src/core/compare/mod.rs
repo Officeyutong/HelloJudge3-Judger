@@ -11,9 +11,9 @@ pub struct CompareResult {
 pub trait Comparator: Sync + Send {
     async fn compare(
         &self,
-        user_out: Arc<[u8]>,
-        answer: Arc<[u8]>,
-        input_data: Arc<[u8]>,
+        user_out: Arc<Vec<u8>>,
+        answer: Arc<Vec<u8>>,
+        input_data: Arc<Vec<u8>>,
         full_score: i64,
     ) -> ResultType<CompareResult>;
 }

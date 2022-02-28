@@ -1,7 +1,7 @@
-use std::{io::BufReader, ptr::null_mut};
+use std::{io::Write, ptr::null_mut};
 
-use libc::{fclose, fopen, fscanf, kill, usleep};
-use log::error;
+use libc::{gettid, usleep};
+use log::{error, info};
 
 use crate::core::misc::ResultType;
 use anyhow::anyhow;
@@ -22,91 +22,89 @@ unsafe fn get_current_usec() -> i64 {
     gettimeofday(&mut curr as *mut timeval, null_mut());
     return curr.tv_sec * 1_000_000 + curr.tv_usec;
 }
-pub unsafe fn watch_container(pid: i32, time_limit: i64) -> ResultType<WatchResult> {
-    let cgroup_root = format!("/proc/{}/cgroup", pid);
-    // let mut cpu_cgp: Option<String> = None;
-    let mut memory_cgp: Option<String> = None;
-    {
-        use std::io::prelude::*;
-        let file = match std::fs::File::open(&cgroup_root) {
-            Ok(v) => v,
-            Err(e) => {
-                error!("Failed to read cgroup control file: {}", e);
+
+// const FILE_FLAG: *const i8 = "r".as_ptr() as *const i8;
+// const FORMAT_STR: *const i8 = "%lld".as_ptr() as *const i8;
+pub unsafe fn watch_container(
+    _pid: i32,
+    time_limit: i64,
+    container_long_id: String,
+) -> ResultType<WatchResult> {
+    let tid = gettid();
+    info!("Watcher tid: {}", tid);
+    let main_group_file = "/sys/fs/cgroup/memory/tasks";
+    let main_dir = format!("/sys/fs/cgroup/memory/docker/{}", container_long_id);
+    let tasks_file = format!("/sys/fs/cgroup/memory/docker/{}/tasks", container_long_id);
+    let max_mem_usage_file = format!(
+        "/sys/fs/cgroup/memory/docker/{}/memory.max_usage_in_bytes",
+        container_long_id
+    );
+    // if let Err(e) =.
+    match std::fs::File::options().append(true).open(&tasks_file) {
+        Ok(mut f) => {
+            if let Err(e) = f.write(tid.to_string().as_bytes()) {
+                error!("Failed to write my tid: {}", e);
                 return Ok(WatchResult {
                     memory_result: 0,
                     time_result: 0,
                 });
             }
-        };
-        // .map_err(|e| anyhow!("Failed to read cgroup control file: {}, {}", cgroup_root, e))?;
-        let reader = BufReader::new(file);
-        for line in reader.split('\n' as u8) {
-            let s = String::from_utf8(
-                line.map_err(|e| anyhow!("Failed to read cgroup control file: {}", e))?,
-            )
-            .map_err(|e| anyhow!("Failed to decode cgroup control file: {}", e))?;
-            let splitted = s.split(":").collect::<Vec<&str>>();
-            if splitted.len() == 3 {
-                match splitted[..] {
-                    // [_, tp, id] if tp.contains("cpu") => {
-                    //     cpu_cgp = Some(format!("/sys/fs/cgroup/cpu{}/cpu.stat", id));
-                    // }
-                    [_, tp, id] if tp.contains("memory") => {
-                        memory_cgp =
-                            Some(format!("/sys/fs/cgroup/memory{}/memory.usage_in_bytes", id));
-                    }
-                    _ => (),
-                };
-            }
         }
-    }
-    // let cpu = cpu_cgp
-    //     .as_ref()
-    //     .ok_or(anyhow!("Failed to find cpu cgroup control file!"))?
-    //     .as_bytes();
-    let memory = memory_cgp
-        .as_ref()
-        .ok_or(anyhow!("Failed to find memory cgroup control file!"))?
-        .as_bytes();
-    let begin = get_current_usec();
-    let mut total_memory: i64 = 0;
-    let mut memory_cost_count: i64 = 0;
-    let mut time_result: i64 = -1;
-    let time_mul_1000 = time_limit * 1000;
-    const FILE_FLAG: *const i8 = "r".as_ptr() as *const i8;
-    while kill(pid, 0) == 0 {
-        time_result = get_current_usec() - begin;
-        if time_result >= time_mul_1000 {
-            break;
+        Err(e) => {
+            error!("Failed to open tasks file: {}", e);
+            return Ok(WatchResult {
+                memory_result: 0,
+                time_result: 0,
+            });
         }
-        let fp = fopen(memory.as_ptr() as *mut i8, FILE_FLAG);
-        if !fp.is_null() {
-            let mut curr_usage: i64 = 0;
-            if fscanf(
-                fp,
-                "%lld".as_ptr() as *const i8,
-                &mut curr_usage as *mut i64,
-            ) > 0
-            {
-                total_memory += curr_usage;
-                memory_cost_count += 1;
-            }
-            fclose(fp);
-        } else {
-            break;
-        }
-        usleep(100);
-    }
-    let memory_result = if memory_cost_count == 0 {
-        0
-    } else {
-        total_memory / memory_cost_count
     };
-    if time_result == -1 {
-        time_result = 0;
+    let begin = get_current_usec();
+    let mut time_result: i64;
+    let mut read_buf = Vec::<u8>::new();
+    read_buf.reserve(128);
+    let should_cleanup = loop {
+        time_result = get_current_usec() - begin;
+        if time_result >= time_limit {
+            break false;
+        }
+        let s = std::fs::read_to_string(&tasks_file).unwrap();
+        if s.as_bytes().iter().filter(|v| **v == '\n' as u8).count() == 1 {
+            break true;
+        }
+        // let mut fp = std::fs::File::open(&tasks_file)
+        //     .map_err(|e| anyhow!("Fatal error: Can not open tasks file: {}", e))?;
+        // fp.read_to_end(&mut read_buf)
+        //     .map_err(|e| anyhow!("Fatal error: failed to read tasks file: {}", e))?;
+        // let mut cnt = 0;
+        // for c in read_buf.iter() {
+        //     if *c == '\n' as u8 {
+        //         cnt += 1;
+        //     }
+        //     if cnt >= 2 {
+        //         break;
+        //     }
+        // }
+        // if cnt == 1 {
+        //     break true;
+        // }
+        usleep(50);
+    };
+    info!("Break: should_cleanup={}", should_cleanup);
+    let usage_str = std::fs::read_to_string(&max_mem_usage_file)?
+        .trim()
+        .to_string();
+    let memory_usage = i64::from_str_radix(&usage_str, 10)
+        .map_err(|_| anyhow!("Failed to parse: {}", usage_str))?;
+    std::fs::File::options()
+        .append(true)
+        .open(main_group_file)?
+        .write(tid.to_string().as_bytes())?;
+    if should_cleanup {
+        std::fs::remove_dir(&main_dir)
+            .map_err(|e| anyhow!("Failed to cleanup cgroup dir: {}", e))?;
     }
     return Ok(WatchResult {
-        memory_result,
         time_result,
+        memory_result: memory_usage,
     });
 }

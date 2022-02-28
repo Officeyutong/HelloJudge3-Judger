@@ -10,7 +10,7 @@ use bollard::{
         ResourcesUlimits,
     },
 };
-use log::{error, info};
+use log::{debug, error, info};
 #[derive(Debug)]
 pub struct ExecuteResult {
     pub exit_code: i32,
@@ -42,13 +42,17 @@ pub async fn execute_in_docker(
                 image: Some(image_name.to_string()),
                 cmd: Some(command.clone()),
                 tty: Some(true),
-                open_stdin: Some(true),
+                open_stdin: Some(false),
                 network_disabled: Some(true),
                 working_dir: Some("/temp".to_string()),
+                attach_stdout: Some(true),
+                attach_stderr: Some(true),
+                // volumes: Some(HashMap::from([("/temp".into(), HashMap::default())])),
                 host_config: Some(HostConfig {
+                    // binds: Some(vec![format!("{}:/temp:rw", mount_dir)]),
                     cgroupns_mode: Some(HostConfigCgroupnsModeEnum::PRIVATE),
                     privileged: Some(false),
-                    readonly_rootfs: Some(true),
+                    readonly_rootfs: Some(false),
                     mounts: Some(vec![Mount {
                         target: Some("/temp".to_string()),
                         source: Some(mount_dir.to_string()),
@@ -81,8 +85,6 @@ pub async fn execute_in_docker(
         .start_container::<&str>(&container.id, None)
         .await
         .map_err(|e| anyhow!("Failed to start container: {}", e))?;
-    // docker_client
-    //     .stats(container_name, options)
     let attrs = docker_client
         .inspect_container(container.id.as_str(), None)
         .await
@@ -92,20 +94,27 @@ pub async fn execute_in_docker(
         .ok_or(anyhow!("Missing field: 'state'"))?
         .pid
         .ok_or(anyhow!("Missing field: pid"))?;
-    let watch_result =
-        tokio::task::spawn_blocking(move || unsafe { watch_container(pid as i32, time_limit) })
-            .await
-            .map_err(|e| anyhow!("Failed to run blocking task: {}", e))?
-            .map_err(|e| anyhow!("Failed to watch the status: {}", e))?;
+    let long_id = attrs.id.ok_or(anyhow!("Failed to get container id!"))?;
+    info!("Watcher started, pid = {}", pid);
+    // let handle =
+    //     std::thread::spawn(move || unsafe { watch_container(pid as i32, time_limit, long_id) });
+    let watch_result = tokio::task::spawn_blocking(move || unsafe {
+        watch_container(pid as i32, time_limit, long_id)
+    })
+    .await
+    // .map_err(|e| anyhow!("Failed to join: {}", e))?
+    .map_err(|e| anyhow!("Failed to run blocking task: {}", e))?
+    .map_err(|e| anyhow!("Failed to watch the status: {}", e))?;
     info!("Watch result: {:#?}", watch_result);
     {
         let details = docker_client
             .inspect_container(container.id.as_str(), None)
             .await
             .map_err(|e| anyhow!("Failed to get contaier details: {}", e))?;
+        debug!("Details before kill: {:#?}", details);
         if let ContainerStateStatusEnum::EXITED = details
             .state
-            .ok_or(anyhow!("Missing field: stats"))?
+            .ok_or(anyhow!("Missing field: state"))?
             .status
             .unwrap_or(bollard::models::ContainerStateStatusEnum::EMPTY)
         {
@@ -151,12 +160,12 @@ pub async fn execute_in_docker(
         .inspect_container(container.id.as_str(), None)
         .await
         .map_err(|e| anyhow!("Failed to get contaier details: {}", e))?;
-    if let Err(e) = docker_client
-        .remove_container(container.id.as_str(), None)
-        .await
-    {
-        error!("Failed to remove container: {}", e);
-    }
+    // if let Err(e) = docker_client
+    //     .remove_container(container.id.as_str(), None)
+    //     .await
+    // {
+    //     error!("Failed to remove container: {}", e);
+    // }
     let WatchResult {
         time_result,
         mut memory_result,
@@ -167,6 +176,8 @@ pub async fn execute_in_docker(
         .ok_or(anyhow!("?"))?
         .oom_killed
         .ok_or(anyhow!("??"))?;
+    debug!("Last attribute: {:#?}", attr);
+    info!("OOM Killed: {}", is_oom_killed);
     if is_oom_killed {
         memory_result = attr
             .host_config

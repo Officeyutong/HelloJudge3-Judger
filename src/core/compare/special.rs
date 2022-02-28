@@ -34,9 +34,9 @@ pub struct SpecialJudgeComparator {
 impl Comparator for SpecialJudgeComparator {
     async fn compare(
         &self,
-        user_out: Arc<[u8]>,
-        answer: Arc<[u8]>,
-        input_data: Arc<[u8]>,
+        user_out: Arc<Vec<u8>>,
+        answer: Arc<Vec<u8>>,
+        input_data: Arc<Vec<u8>>,
         full_score: i64,
     ) -> ResultType<CompareResult> {
         return self
@@ -46,18 +46,17 @@ impl Comparator for SpecialJudgeComparator {
 }
 impl SpecialJudgeComparator {
     pub async fn compile(&self) -> ResultType<()> {
+        // let working_path = PathBuf::from("/spj");
+        let working_path = self.working_dir.path();
         let source_filename = self.language_config.source(SPJ_FILENAME);
         let output_filename = self.language_config.output(SPJ_FILENAME);
         tokio::fs::copy(
             self.spj_file.as_path(),
-            self.working_dir.path().join(&source_filename),
+            &working_path.join(&source_filename),
         )
         .await
         .map_err(|e| anyhow!("Failed to create special judge program: {}", e))?;
-        info!(
-            "SPJ working dir: {}",
-            self.working_dir.path().to_str().unwrap_or("")
-        );
+        info!("SPJ working dir: {}", working_path.to_str().unwrap_or(""));
         let compile_cmdline = self
             .language_config
             .compile_s(&source_filename, &output_filename, "")
@@ -66,16 +65,16 @@ impl SpecialJudgeComparator {
             .collect::<Vec<String>>();
         let run_result = execute_in_docker(
             &self.docker_image,
-            self.working_dir.path().to_str().unwrap_or(""),
+            working_path.to_str().unwrap_or(""),
             &compile_cmdline,
             1024 * 1024 * 1024,
-            5000 * 1000,
+            10 * 1000 * 1000,
             1024 * 1024,
         )
         .await
         .map_err(|e| anyhow!("Failed to compile special judge program: {}", e))?;
         info!("SPJ compile result:\n{:#?}", run_result);
-        if !self.working_dir.path().join(output_filename).exists() || run_result.exit_code != 0 {
+        if !working_path.join(output_filename).exists() || run_result.exit_code != 0 {
             return Err(anyhow!(
                 "Failed to compile special judge program (exit code = {}):\n{}",
                 run_result.exit_code,
@@ -86,30 +85,35 @@ impl SpecialJudgeComparator {
     }
     async fn my_compare(
         &self,
-        user_out: Arc<[u8]>,
-        answer: Arc<[u8]>,
-        input_data: Arc<[u8]>,
+        user_out: Arc<Vec<u8>>,
+        answer: Arc<Vec<u8>>,
+        input_data: Arc<Vec<u8>>,
         full_score: i64,
     ) -> ResultType<CompareResult> {
-        tokio::fs::write(self.working_dir.path().join("user_out"), user_out)
+        // let working_path = PathBuf::from("/spj");
+        let working_path = self.working_dir.path();
+        tokio::fs::write(working_path.join("user_out"), &*user_out)
             .await
             .map_err(|e| anyhow!("Failed to write user_out: {}", e))?;
-        tokio::fs::write(self.working_dir.path().join("answer"), answer)
+        tokio::fs::write(working_path.join("answer"), &*answer)
             .await
             .map_err(|e| anyhow!("Failed to write answer: {}", e))?;
-        tokio::fs::write(self.working_dir.path().join("input"), input_data)
+        tokio::fs::write(working_path.join("input"), &*input_data)
             .await
             .map_err(|e| anyhow!("Failed to write input: {}", e))?;
-        let run_cmdline = self
-            .language_config
-            .run_s(&self.language_config.output(SPJ_FILENAME), "")
-            .split_ascii_whitespace()
-            .map(|v| v.to_string())
-            .collect::<Vec<String>>();
+        // let run_cmdline =
+        //     .map(|v| v.to_string())
+        //     .collect::<Vec<String>>();
+        let run_cmdline = vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            self.language_config
+                .run_s(&self.language_config.output(SPJ_FILENAME), ""),
+        ];
         info!("Run special judge program: {:?}", run_cmdline);
         let run_result = execute_in_docker(
             &self.docker_image,
-            self.working_dir.path().to_str().unwrap_or(""),
+            working_path.to_str().unwrap_or(""),
             &run_cmdline,
             2048 * 2048 * 2048,
             self.run_time_limit,
@@ -123,13 +127,24 @@ impl SpecialJudgeComparator {
             run_result.memory_cost / 1024 / 1024,
             run_result.time_cost / 1000
         );
+        let message_file = working_path.join("message");
+        let message = if message_file.exists() {
+            tokio::fs::read_to_string(message_file)
+                .await
+                .map_err(|e| anyhow!("Failed to read message file: {}", e))?
+        } else {
+            "".to_string()
+        };
         if run_result.exit_code != 0 {
             return Ok(CompareResult {
-                message: format!("SPJ exited: {}, {}", run_result.exit_code, usage_message),
+                message: format!(
+                    "SPJ exited: {}({})|{}",
+                    run_result.exit_code, usage_message, message
+                ),
                 score: 0,
             });
         }
-        let score_file = self.working_dir.path().join("score");
+        let score_file = working_path.join("score");
         let score_str = if !score_file.exists() {
             return Ok(CompareResult {
                 message: "SPJ exited with no score file".to_string(),
@@ -142,14 +157,7 @@ impl SpecialJudgeComparator {
         };
         let score = i64::from_str_radix(&score_str, 10)
             .map_err(|e| anyhow!("Failed to parse score: {}", e))?;
-        let message_file = self.working_dir.path().join("message");
-        let message = if message_file.exists() {
-            tokio::fs::read_to_string(message_file)
-                .await
-                .map_err(|e| anyhow!("Failed to read message file: {}", e))?
-        } else {
-            "No extra message provided".to_string()
-        };
+
         if score < 0 || score > 100 {
             return Err(anyhow!("Invalid score: {}", score));
         }
