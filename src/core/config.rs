@@ -8,6 +8,7 @@ pub struct JudgerConfig {
     pub judger_uuid: String,
     pub docker_image: String,
     pub logging_level: String,
+    pub prefetch_count: u16,
 }
 
 impl Default for JudgerConfig {
@@ -19,6 +20,7 @@ impl Default for JudgerConfig {
             judger_uuid: "7222dcd8-96fb-11ec-864e-9cda3efd56be".to_string(),
             docker_image: "python".to_string(),
             logging_level: "info".to_string(),
+            prefetch_count: 1,
         }
     }
 }
