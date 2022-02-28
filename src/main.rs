@@ -6,7 +6,7 @@ use crate::{
         misc::ResultType,
         state::{AppState, GLOBAL_APP_STATE},
     },
-    task::local::local_judge_task_handler,
+    task::{local::local_judge_task_handler, online_ide::online_ide_handler},
 };
 use anyhow::anyhow;
 use celery::{broker::RedisBrokerBuilder, CeleryBuilder};
@@ -88,6 +88,11 @@ async fn main() -> ResultType<()> {
         .register_task::<local_judge_task_handler>()
         .await
         .expect("Failed to register local judge handler");
+    celery_app
+        .register_task::<online_ide_handler>()
+        .await
+        .expect("Failed to register online ide handler");
+
     info!("Started!");
     celery_app.consume().await.unwrap();
     return Ok(());
