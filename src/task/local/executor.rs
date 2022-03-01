@@ -320,8 +320,9 @@ async fn handle(
             app,
             &judge_result,
             &format!(
-                "{}\n{}\n编译时间占用: {} ms\n编译内存占用: {} MB\n退出代码: {}",
+                "{}\n评测结束于: {}\n{}\n编译时间占用: {} ms\n编译内存占用: {} MB\n退出代码: {}",
                 app.version_string,
+                chrono::Local::now().format("%F %X").to_string(),
                 compile_result.output,
                 compile_result.time_cost / 1000,
                 compile_result.memory_cost / 1024 / 1024,
