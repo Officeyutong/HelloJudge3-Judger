@@ -82,6 +82,7 @@ async fn main() -> ResultType<()> {
         CeleryBuilder::<RedisBrokerBuilder>::new("hj3-judger", &app_state.config.broker_url)
             .task_retry_for_unexpected(false)
             .prefetch_count(app_state.config.prefetch_count)
+            .acks_late(true)
             .build()
             .await?,
     );
