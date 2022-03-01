@@ -87,7 +87,7 @@ pub unsafe fn watch_container(
         // if cnt == 1 {
         //     break true;
         // }
-        usleep(50);
+        usleep(150);
     };
     info!("Break: should_cleanup={}", should_cleanup);
     let usage_str = std::fs::read_to_string(&max_mem_usage_file)?
