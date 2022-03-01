@@ -1,32 +1,33 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    sync::Arc,
+};
 
+use async_zip::read::mem::ZipFileReader;
 use celery::{prelude::TaskError, task::TaskResult};
 use lazy_static::lazy_static;
-use log::{debug, error, info};
+use log::{debug, info};
 use regex::Regex;
 use serde_json::Value;
-use tokio::io::AsyncReadExt;
 
 use crate::{
     core::{
-        compare::{
-            simple::SimpleLineComparator, special::SpecialJudgeComparator, Comparator,
-            CompareResult,
-        },
+        compare::{simple::SimpleLineComparator, special::SpecialJudgeComparator, Comparator},
         misc::ResultType,
-        runner::docker::execute_in_docker,
         state::{AppState, GLOBAL_APP_STATE},
         util::get_language_config,
     },
     task::local::{
         compile::compile_program,
         model::{SubmissionInfo, SubmissionSubtaskResult, SubmissionTestcaseResult},
+        submit_answer::handle_submit_answer,
+        traditional::handle_traditional,
         util::{get_problem_data, sync_problem_files},
-        DEFAULT_PROGRAM_FILENAME,
     },
 };
 
 use super::{
+    compile::CompileResult,
     model::{ExtraJudgeConfig, SubmissionJudgeResult},
     util::{update_status, AsyncStatusUpdater},
 };
@@ -46,7 +47,24 @@ pub async fn local_judge_task_handler(
     }
     return Ok(());
 }
-
+pub enum IntermediateValue {
+    SubmitAnswer(HashMap<String, Vec<u8>>),
+    Traditional(CompileResult),
+}
+impl IntermediateValue {
+    pub fn traditional(self) -> Option<CompileResult> {
+        match self {
+            IntermediateValue::SubmitAnswer(_) => None,
+            IntermediateValue::Traditional(v) => Some(v),
+        }
+    }
+    pub fn submit_answer(&self) -> Option<&HashMap<String, Vec<u8>>> {
+        match self {
+            IntermediateValue::SubmitAnswer(v) => Some(v),
+            IntermediateValue::Traditional(_) => None,
+        }
+    }
+}
 async fn handle(
     submission_info: Value,
     extra_config: ExtraJudgeConfig,
@@ -134,7 +152,7 @@ async fn handle(
         .await
         .map_err(|e| anyhow!("Failed to download language definition: {}", e))?;
     info!("Language definition:\n{:#?}", lang_config);
-    let compile_result = if !extra_config.submit_answer {
+    let intermediate_value = if !extra_config.submit_answer {
         let compile_ret = compile_program(
             app,
             working_dir_path,
@@ -150,9 +168,48 @@ async fn handle(
         if compile_ret.compile_error {
             return Ok(());
         }
-        Some(compile_ret.execute_result)
+        IntermediateValue::Traditional(compile_ret)
     } else {
-        todo!();
+        let mut required_files = HashSet::<String>::default();
+        for subtask in problem_data.subtasks.iter() {
+            for testcase in subtask.testcases.iter() {
+                required_files.insert(testcase.output.clone());
+            }
+        }
+        let b64dec = Arc::new(
+            base64::decode(
+                extra_config
+                    .answer_data
+                    .as_ref()
+                    .ok_or(anyhow!("Missing answer data!"))?,
+            )
+            .map_err(|e| anyhow!("Failed to decode answer data: {}", e))?,
+        );
+        let mut zip = ZipFileReader::new(&b64dec)
+            .await
+            .map_err(|e| anyhow!("Failed to read zip file: {}", e))?;
+        let mut answer_files = HashMap::<String, Vec<u8>>::default();
+        for t in required_files.iter() {
+            let entry = zip.entry(t.as_str()).map(|v| v.0);
+            let to_insert = if let Some(v) = entry {
+                let things = zip
+                    .entry_reader(v)
+                    .await
+                    .map_err(|e| anyhow!("Failed to read file: {}, {}", t, e))?;
+                things
+                    .read_to_end_crc()
+                    .await
+                    .map_err(|e| anyhow!("Failed to decompress file: {}, {}", t, e))?
+            } else {
+                vec![]
+            };
+            answer_files.insert(t.clone(), to_insert);
+        }
+        info!(
+            "Files in user zip: {:?}",
+            answer_files.keys().collect::<Vec<&String>>()
+        );
+        IntermediateValue::SubmitAnswer(answer_files)
     };
     let time_scale = extra_config.time_scale.unwrap_or(1.02);
     let mut judge_result = sub_info.judge_result.clone();
@@ -205,128 +262,33 @@ async fn handle(
                 continue;
             }
             if extra_config.submit_answer {
-                todo!();
+                let testcase_result =
+                    &mut judge_result.get_mut(&subtask.name).unwrap().testcases[i];
+                handle_submit_answer(
+                    testcase_result,
+                    testcase,
+                    this_problem_path.as_path(),
+                    &intermediate_value,
+                    &*comparator,
+                )
+                .await?;
             } else {
-                let input_file = if problem_data.using_file_io == 1 {
-                    problem_data.input_file_name.as_str()
-                } else {
-                    "in"
-                };
-                let output_file = if problem_data.using_file_io == 1 {
-                    problem_data.output_file_name.as_str()
-                } else {
-                    "out"
-                };
-                info!("Input file: {}, output file: {}", input_file, output_file);
-                tokio::fs::copy(
-                    this_problem_path.join(&testcase.input),
-                    working_dir_path.join(input_file),
+                handle_traditional(
+                    &problem_data,
+                    this_problem_path.as_path(),
+                    working_dir_path,
+                    testcase,
+                    subtask,
+                    time_scale,
+                    &lang_config,
+                    app,
+                    &*comparator,
+                    &extra_config,
+                    i,
+                    &mut will_skip,
+                    &mut judge_result,
                 )
-                .await
-                .map_err(|e| anyhow!("Failed to copy input file: {}", e))?;
-                let scaled_time = (subtask.time_limit as f64 * time_scale) as i64;
-                let execute_cmdline = lang_config.run_s(
-                    &lang_config.output(DEFAULT_PROGRAM_FILENAME),
-                    &(if problem_data.using_file_io == 1 {
-                        "".to_string()
-                    } else {
-                        format!("< {} > {}", input_file, output_file)
-                    }),
-                );
-                info!("Run command line: {}", execute_cmdline);
-                let run_result = execute_in_docker(
-                    &app.config.docker_image,
-                    working_dir_path.to_str().unwrap(),
-                    &vec!["sh".to_string(), "-c".to_string(), execute_cmdline],
-                    subtask.memory_limit * 1024 * 1024,
-                    scaled_time * 1000,
-                    1000,
-                )
-                .await
-                .map_err(|e| anyhow!("Fatal error: {}", e))?;
-                info!("Run result:\n{:#?}", run_result);
-                {
-                    let mut testcase_result =
-                        &mut judge_result.get_mut(&subtask.name).unwrap().testcases[i];
-                    testcase_result.memory_cost = run_result.memory_cost;
-                    testcase_result.time_cost =
-                        (run_result.time_cost as f64 / 1000.0).ceil() as i64;
-                    if run_result.memory_cost / 1024 / 1024 >= subtask.memory_limit {
-                        testcase_result.update_status("memory_limit_exceed");
-                    } else if run_result.time_cost >= scaled_time * 1000 {
-                        testcase_result.update_status("time_limit_exceed");
-                    } else if run_result.exit_code != 0 {
-                        testcase_result.update(
-                            "runtime_error",
-                            &format!("退出代码: {}", run_result.exit_code),
-                        );
-                    } else {
-                        let user_out =
-                            match tokio::fs::File::open(working_dir_path.join(output_file)).await {
-                                Ok(mut f) => match f.metadata().await {
-                                    Ok(d) => {
-                                        if d.len() > extra_config.output_file_size_limit as u64 {
-                                            testcase_result
-                                                .update("output_size_limit_exceed", "输出文件过大");
-                                            continue;
-                                        }
-                                        let mut v: Vec<u8> = vec![];
-                                        match f.read_to_end(&mut v).await {
-                                            Ok(_) => v,
-                                            Err(_) => vec![],
-                                        }
-                                    }
-                                    Err(e) => {
-                                        error!("Failed to get metadata: {}", e);
-                                        vec![]
-                                    }
-                                },
-                                Err(e) => {
-                                    error!("Failed to open output file: {}", e);
-                                    vec![]
-                                }
-                            };
-                        let full_score = testcase.full_score;
-                        let input_data = tokio::fs::read(this_problem_path.join(&testcase.input))
-                            .await
-                            .map_err(|e| {
-                                anyhow!("Failed to read input data: {}, {}", testcase.input, e)
-                            })?;
-                        let answer_data = tokio::fs::read(this_problem_path.join(&testcase.output))
-                            .await
-                            .map_err(|e| {
-                                anyhow!("Failed to read answer data: {}, {}", testcase.output, e)
-                            })?;
-                        let CompareResult { score, message } = match comparator
-                            .compare(
-                                Arc::new(user_out.into()),
-                                Arc::new(answer_data.into()),
-                                Arc::new(input_data.into()),
-                                full_score,
-                            )
-                            .await
-                        {
-                            Ok(v) => v,
-                            Err(e) => CompareResult {
-                                score: 0,
-                                message: e.to_string(),
-                            },
-                        };
-                        if score < full_score {
-                            testcase_result.update_status("wrong_answer");
-                        } else if score == full_score {
-                            testcase_result.update_status("accepted");
-                        } else {
-                            testcase_result
-                                .update("unaccepted", &format!("Illegal score: {}", score));
-                        }
-                        testcase_result.score = score;
-                        testcase_result.message = message;
-                        if testcase_result.status != "accepted" && subtask.method == "min" {
-                            will_skip = true;
-                        }
-                    }
-                }
+                .await?;
             }
         } //subtask
         let mut subtask_result = judge_result.get_mut(&subtask.name).unwrap();
@@ -352,14 +314,22 @@ async fn handle(
     }
     info!("Judge result: {:?}", judge_result);
     if !extra_config.submit_answer {
-        let compile_result = compile_result.unwrap();
-        update_status(app, &judge_result, &format!("HelloJudge3-Judger, version {}\n{}\n编译时间占用: {} ms\n编译内存占用: {} MB\n退出代码: {}",
-        env!("CARGO_PKG_VERSION"),
-        compile_result.output,
-        compile_result.time_cost/1000,
-        compile_result.memory_cost/1024/1024,
-        compile_result.exit_code
-    ), None, sid).await;
+        let compile_result = intermediate_value.traditional().unwrap().execute_result;
+        update_status(
+            app,
+            &judge_result,
+            &format!(
+                "{}\n{}\n编译时间占用: {} ms\n编译内存占用: {} MB\n退出代码: {}",
+                app.version_string,
+                compile_result.output,
+                compile_result.time_cost / 1000,
+                compile_result.memory_cost / 1024 / 1024,
+                compile_result.exit_code
+            ),
+            None,
+            sid,
+        )
+        .await;
     } else {
         update_status(app, &judge_result, "", None, sid).await;
     }

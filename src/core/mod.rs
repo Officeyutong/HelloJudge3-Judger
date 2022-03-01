@@ -1,7 +1,7 @@
+pub mod compare;
 pub mod config;
 pub mod misc;
 pub mod model;
-pub mod state;
 pub mod runner;
+pub mod state;
 pub mod util;
-pub mod compare;

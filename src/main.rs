@@ -73,6 +73,7 @@ async fn main() -> ResultType<()> {
         config,
         file_dir_locks: tokio::sync::Mutex::new(HashMap::default()),
         testdata_dir: data_dir,
+        version_string: format!("HelloJudge3-Judger {}", env!("CARGO_PKG_VERSION"),),
     };
     *GLOBAL_APP_STATE.write().await = Some(app_state);
     let guard = GLOBAL_APP_STATE.read().await;
@@ -92,7 +93,7 @@ async fn main() -> ResultType<()> {
         .register_task::<online_ide_handler>()
         .await
         .expect("Failed to register online ide handler");
-
+    info!("{}", app_state.version_string);
     info!("Started!");
     celery_app.consume().await.unwrap();
     return Ok(());

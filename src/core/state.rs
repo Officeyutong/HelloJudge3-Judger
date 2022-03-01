@@ -8,6 +8,7 @@ pub struct AppState {
     pub config: JudgerConfig,
     pub file_dir_locks: tokio::sync::Mutex<HashMap<i64, Arc<Mutex<()>>>>,
     pub testdata_dir: PathBuf,
+    pub version_string: String,
 }
 use lazy_static::lazy_static;
 lazy_static! {
