@@ -22,7 +22,7 @@ pub async fn online_ide_handler(
 ) -> TaskResult<()> {
     let guard = GLOBAL_APP_STATE.read().await;
     let app_state_guard = guard.as_ref().unwrap();
-    // let sid = submission_data.pointer("/id").unwrap().as_i64().unwrap();
+    let _semaphore_guard = app_state_guard.task_count_lock.acquire().await.unwrap();
     if let Err(e) = handle(
         lang_id,
         run_id.clone(),

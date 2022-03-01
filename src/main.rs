@@ -13,6 +13,7 @@ use celery::{broker::RedisBrokerBuilder, CeleryBuilder};
 use config::Config;
 use flexi_logger::{DeferredNow, Record, TS_DASHES_BLANK_COLONS_DOT_BLANK};
 use log::info;
+use tokio::sync::Semaphore;
 pub mod core;
 pub mod task;
 pub fn my_log_format(
@@ -54,6 +55,9 @@ async fn main() -> ResultType<()> {
             .map_err(|e| anyhow!("Failed to deserialize configure file: {}", e))?,
         )?);
     let config: JudgerConfig = builder.build()?.try_deserialize()?;
+    if config.prefetch_count < 2 {
+        return Err(anyhow!("prefetch_count must be greater than 1"));
+    }
     use flexi_logger::{Duplicate, FileSpec, Logger};
     Logger::try_with_str(&config.logging_level)
         .map_err(|_| anyhow!("Invalid loggine level: {}", config.logging_level))?
@@ -69,11 +73,13 @@ async fn main() -> ResultType<()> {
     if !data_dir.exists() {
         std::fs::create_dir(&data_dir).expect("Failed to create data dir");
     }
+    let task_count = config.max_tasks_sametime.clone();
     let app_state = AppState {
         config,
         file_dir_locks: tokio::sync::Mutex::new(HashMap::default()),
         testdata_dir: data_dir,
         version_string: format!("HelloJudge3-Judger {}", env!("CARGO_PKG_VERSION"),),
+        task_count_lock: Arc::new(Semaphore::new(task_count)),
     };
     *GLOBAL_APP_STATE.write().await = Some(app_state);
     let guard = GLOBAL_APP_STATE.read().await;

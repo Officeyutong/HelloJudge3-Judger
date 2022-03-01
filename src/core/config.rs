@@ -9,6 +9,7 @@ pub struct JudgerConfig {
     pub docker_image: String,
     pub logging_level: String,
     pub prefetch_count: u16,
+    pub max_tasks_sametime: usize,
 }
 
 impl Default for JudgerConfig {
@@ -21,6 +22,7 @@ impl Default for JudgerConfig {
             docker_image: "python".to_string(),
             logging_level: "info".to_string(),
             prefetch_count: 1,
+            max_tasks_sametime: 1,
         }
     }
 }

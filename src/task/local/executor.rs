@@ -39,6 +39,7 @@ pub async fn local_judge_task_handler(
 ) -> TaskResult<()> {
     let guard = GLOBAL_APP_STATE.read().await;
     let app_state_guard = guard.as_ref().unwrap();
+    let _semaphore_guard = app_state_guard.task_count_lock.acquire().await.unwrap();
     let sid = submission_data.pointer("/id").unwrap().as_i64().unwrap();
     if let Err(e) = handle(submission_data, extra_config, app_state_guard).await {
         let err_str = format!("{}", e,);
