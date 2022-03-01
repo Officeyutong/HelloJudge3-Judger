@@ -6,6 +6,8 @@ HJ2/HJ3评测器，由Rust强力驱动，兼容HJ2的通信协议。
 
 使用docker目录下的Dockerfile构建一个用以评测的docker镜像
 
+- 评测镜像也通过`officeyutong/hj3-judger-container`提供，但不一定及时更新
+
 ## 系统要求
 
 理论上安装有Docker的x86_64 Linux都支持。
