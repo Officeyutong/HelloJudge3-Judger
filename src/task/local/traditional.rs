@@ -139,10 +139,10 @@ pub async fn handle_traditional(
                 testcase_result.update("unaccepted", &format!("Illegal score: {}", score));
             }
             testcase_result.score = score;
-            testcase_result.message = message;
-            if testcase_result.status != "accepted" && subtask.method == "min" {
-                *will_skip = true;
-            }
+            testcase_result.message = message;  
+        }
+        if testcase_result.status != "accepted" && subtask.method == "min" {
+            *will_skip = true;
         }
     }
     return Ok(());
