@@ -1,10 +1,11 @@
-name: Rust
+name: Build binary
 
 on:
   push:
-    branches: [ main ]
+    tags:
+      - v**
   pull_request:
-    branches: [ main ]
+
 
 env:
   CARGO_TERM_COLOR: always
@@ -20,7 +21,22 @@ jobs:
       run: sudo apt install libssl-dev
     - name: Build
       run: cargo build --release --verbose
-    - name: Upload build result
-      uses: actions/upload-artifact@v2.3.1
+    - name: Rename binary
+      id: rename
+      shell: bash
+      run: |
+        BIN="hellojudge3-judger_linux_amd64"
+        mv target/release/hellojudge3-judger target/release/$BIN
+        echo "::set-output name=bin::target/release/$BIN"
+    - uses: actions/upload-artifact@v2
       with:
-        path: "target/release/hellojudge3-judger"
+        name: artifact
+        path: |
+          target/release/hellojudge3-judger*
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: ${{ steps.rename.outputs.bin }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
