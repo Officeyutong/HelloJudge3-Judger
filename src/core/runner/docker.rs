@@ -148,7 +148,7 @@ pub async fn execute_in_docker(
         {
             out.push_str(line?.to_string().as_str());
             if out.len() > max_output_length as usize {
-                out = String::from(&out[..max_output_length]);
+                out = String::from_iter(out.chars().take(max_output_length));
                 truncated = true;
                 break;
             }
