@@ -155,7 +155,7 @@ impl SpecialJudgeComparator {
                 .await
                 .map_err(|e| anyhow!("Failed to read score: {}", e))?
         };
-        let score = i64::from_str_radix(&score_str, 10)
+        let score = i64::from_str_radix(score_str.trim(), 10)
             .map_err(|e| anyhow!("Failed to parse score: {}", e))?;
 
         if score < 0 || score > 100 {
@@ -163,7 +163,7 @@ impl SpecialJudgeComparator {
         }
         return Ok(CompareResult {
             message,
-            score: (score as f64 / 100.0 * (full_score as f64)).round() as i64,
+            score: (score as f64 / 100.0 * (full_score as f64)).floor() as i64,
         });
     }
     pub fn try_new(
