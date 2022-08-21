@@ -52,7 +52,7 @@ fn compare(user_out: &[u8], answer: &[u8], full_score: i64) -> ResultType<Compar
     {
         if user.trim_end() != answer.trim_end() {
             return Ok(CompareResult {
-                message: format!("Different at line {} (from 0)", i),
+                message: format!("Different at line {}.", i+1),
                 score: 0,
             });
         }
