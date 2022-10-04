@@ -160,12 +160,12 @@ pub async fn execute_in_docker(
         .inspect_container(container.id.as_str(), None)
         .await
         .map_err(|e| anyhow!("Failed to get contaier details: {}", e))?;
-    // if let Err(e) = docker_client
-    //     .remove_container(container.id.as_str(), None)
-    //     .await
-    // {
-    //     error!("Failed to remove container: {}", e);
-    // }
+    if let Err(e) = docker_client
+        .remove_container(container.id.as_str(), None)
+        .await
+    {
+        error!("Failed to remove container: {}", e);
+    }
     let WatchResult {
         time_result,
         mut memory_result,
