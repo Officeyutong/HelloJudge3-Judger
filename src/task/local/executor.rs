@@ -107,7 +107,7 @@ async fn handle(
         };
         let spj_name_match = SPJ_FILENAME_REGEX
             .captures(spj_filename)
-            .ok_or(anyhow!("Invalid spj filename: {}", spj_filename))?;
+            .ok_or(anyhow!("Invalid spj filename: {}, expected spj_xxx.yyy", spj_filename))?;
         let lang = spj_name_match
             .get(1)
             .ok_or(anyhow!("Failed to match spjfilename!"))?
