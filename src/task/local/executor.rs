@@ -19,7 +19,10 @@ use crate::{
     },
     task::local::{
         compile::compile_program,
-        model::{SubmissionInfo, SubmissionSubtaskResult, SubmissionTestcaseResult},
+        dependency::{DependencyGraph, SkippedSubtask, DEPENDENCY_DEFINITION_FILENAME},
+        model::{
+            ProblemSubtask, SubmissionInfo, SubmissionSubtaskResult, SubmissionTestcaseResult,
+        },
         submit_answer::handle_submit_answer,
         traditional::handle_traditional,
         util::{get_problem_data, sync_problem_files},
@@ -105,9 +108,10 @@ async fn handle(
         lazy_static! {
             static ref SPJ_FILENAME_REGEX: Regex = Regex::new(r#"spj_(.+)\..*"#).unwrap();
         };
-        let spj_name_match = SPJ_FILENAME_REGEX
-            .captures(spj_filename)
-            .ok_or(anyhow!("Invalid spj filename: {}, expected spj_xxx.yyy", spj_filename))?;
+        let spj_name_match = SPJ_FILENAME_REGEX.captures(spj_filename).ok_or(anyhow!(
+            "Invalid spj filename: {}, expected spj_xxx.yyy",
+            spj_filename
+        ))?;
         let lang = spj_name_match
             .get(1)
             .ok_or(anyhow!("Failed to match spjfilename!"))?
@@ -239,7 +243,47 @@ async fn handle(
         );
     });
     update_status(app, &judge_result, "", None, sid).await;
-    for subtask in problem_data.subtasks.iter() {
+    let dep_file = this_problem_path.join(DEPENDENCY_DEFINITION_FILENAME);
+
+    let dependency_info = if dep_file.exists() {
+        let val = serde_json::from_str::<serde_json::Value>(
+            &tokio::fs::read_to_string(dep_file).await.map_err(|e| {
+                anyhow!(
+                    "{} exists, but failed to read: {}",
+                    DEPENDENCY_DEFINITION_FILENAME,
+                    e
+                )
+            })?,
+        )
+        .map_err(|e| {
+            anyhow!(
+                "{} exists, but failed to parse: {}",
+                DEPENDENCY_DEFINITION_FILENAME,
+                e
+            )
+        })?;
+        info!("Loaded {}:\n{:#?}", DEPENDENCY_DEFINITION_FILENAME, val);
+        Some(val)
+    } else {
+        info!("{} not found.", DEPENDENCY_DEFINITION_FILENAME);
+        None
+    };
+    let mut dep_state_machine = DependencyGraph::new(
+        &problem_data
+            .subtasks
+            .iter()
+            .map(|v| v.name.clone())
+            .collect::<Vec<_>>(),
+        dependency_info,
+    )
+    .map_err(|e| anyhow!("Error when building dependency graph: {}", e))?;
+    let subtask_data_by_name = HashMap::<String, &ProblemSubtask>::from_iter(
+        problem_data.subtasks.iter().map(|v| (v.name.clone(), v)),
+    );
+    while let Some(subtask_name) = dep_state_machine.next() {
+        let subtask = subtask_data_by_name
+            .get(&subtask_name)
+            .ok_or_else(|| anyhow!("Failed to get subtask `{}` by name!", subtask_name))?;
         info!("Judging subtask: {:?}", subtask);
         // let mut subtask_result = judge_result.get_mut(&subtask.name).unwrap();
 
@@ -307,12 +351,43 @@ async fn handle(
             subtask_result.score = subtask_result.testcases.iter().map(|v| v.score).sum();
         }
         subtask_result.status = (if subtask_result.score == subtask.score {
+            dep_state_machine.report(true);
             "accepted"
         } else {
+            dep_state_machine.report(false);
             "unaccepted"
         })
         .to_string();
     }
+    let skipped_subtask = dep_state_machine.get_skipped_subtasks();
+    info!(
+        "Skipped subtasks:\n{}",
+        skipped_subtask
+            .iter()
+            .map(|v| v.to_string())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    let skipped_subtask_message = {
+        let mut buf = String::new();
+        for item in skipped_subtask.into_iter() {
+            let SkippedSubtask {
+                ref name,
+                ref reason,
+            } = item;
+            let curr_subtask_result = judge_result
+                .get_mut(name)
+                .ok_or_else(|| anyhow!("Unexpected missing subtask: {}", name))?;
+            curr_subtask_result.status = "skipped".into();
+            for testcase in curr_subtask_result.testcases.iter_mut() {
+                testcase.status = "skipped".into();
+                testcase.message = reason.clone();
+            }
+            buf.push_str(&item.to_string());
+            buf.push('\n');
+        }
+        buf
+    };
     info!("Judge result: {:?}", judge_result);
     if !extra_config.submit_answer {
         let compile_result = intermediate_value.traditional().unwrap().execute_result;
@@ -320,20 +395,28 @@ async fn handle(
             app,
             &judge_result,
             &format!(
-                "{}\n评测结束于: {}\n{}\n编译时间占用: {} ms\n编译内存占用: {} MB\n退出代码: {}",
+                "{}\n评测结束于: {}\n{}\n编译时间占用: {} ms\n编译内存占用: {} MB\n退出代码: {}\n跳过了以下子任务:\n{}",
                 app.version_string,
                 chrono::Local::now().format("%F %X").to_string(),
                 compile_result.output,
                 compile_result.time_cost / 1000,
                 compile_result.memory_cost / 1024 / 1024,
-                compile_result.exit_code
+                compile_result.exit_code,
+                skipped_subtask_message
             ),
             None,
             sid,
         )
         .await;
     } else {
-        update_status(app, &judge_result, "", None, sid).await;
+        update_status(
+            app,
+            &judge_result,
+            &format!("跳过了以下子任务:\n{}", skipped_subtask_message),
+            None,
+            sid,
+        )
+        .await;
     }
     info!("Judge task finished");
     return Ok(());
