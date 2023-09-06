@@ -26,7 +26,7 @@ jobs:
       shell: bash
       run: |
         BIN="hellojudge3-judger_linux_amd64"
-        mkdir target/release
+        mkdir -p target/release
         mv ./target/x86_64-unknown-linux-gnu/release/hellojudge3-judger target/release/$BIN
         echo "::set-output name=bin::target/release/$BIN"
     - uses: actions/upload-artifact@v2
