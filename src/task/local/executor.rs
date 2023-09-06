@@ -300,7 +300,7 @@ async fn handle(
             )
             .await;
             if will_skip {
-                let mut ret_ref = &mut judge_result.get_mut(&subtask.name).unwrap().testcases[i];
+                let ret_ref = &mut judge_result.get_mut(&subtask.name).unwrap().testcases[i];
                 ret_ref.score = 0;
                 ret_ref.status = "skipped".to_string();
                 ret_ref.message = "跳过".to_string();
@@ -336,7 +336,7 @@ async fn handle(
                 .await?;
             }
         } //subtask
-        let mut subtask_result = judge_result.get_mut(&subtask.name).unwrap();
+        let subtask_result = judge_result.get_mut(&subtask.name).unwrap();
         if subtask.method == "min" {
             if subtask_result
                 .testcases

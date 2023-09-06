@@ -73,7 +73,7 @@ pub async fn handle_traditional(
     .map_err(|e| anyhow!("Fatal error: {}", e))?;
     info!("Run result:\n{:#?}", run_result);
     {
-        let mut testcase_result = &mut judge_result.get_mut(&subtask.name).unwrap().testcases[i];
+        let testcase_result = &mut judge_result.get_mut(&subtask.name).unwrap().testcases[i];
         testcase_result.memory_cost = run_result.memory_cost;
         testcase_result.time_cost = (run_result.time_cost as f64 / 1000.0).ceil() as i64;
         if run_result.memory_cost / 1024 / 1024 >= subtask.memory_limit {
