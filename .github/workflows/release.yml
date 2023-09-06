@@ -20,13 +20,14 @@ jobs:
     - name: Install deps
       run: sudo apt install libssl-dev
     - name: Build
-      run: cargo build --release --verbose
+      run: RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target x86_64-unknown-linux-gnu
     - name: Rename binary
       id: rename
       shell: bash
       run: |
         BIN="hellojudge3-judger_linux_amd64"
-        mv target/release/hellojudge3-judger target/release/$BIN
+        mkdir target/release
+        mv ./target/x86_64-unknown-linux-gnu/release/hellojudge3-judger target/release/$BIN
         echo "::set-output name=bin::target/release/$BIN"
     - uses: actions/upload-artifact@v2
       with:
