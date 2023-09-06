@@ -49,7 +49,7 @@ pub async fn local_judge_task_handler(
         update_status(app_state_guard, &BTreeMap::new(), &err_str, None, sid).await;
         return Err(TaskError::UnexpectedError(err_str.clone()));
     }
-    return Ok(());
+    Ok(())
 }
 pub enum IntermediateValue {
     SubmitAnswer(HashMap<String, Vec<u8>>),
@@ -82,13 +82,13 @@ async fn handle(
     let problem_data = get_problem_data(&http_client, app, &sub_info).await?;
     debug!("Problem info:\n{:#?}", problem_data);
     let this_problem_path = app.testdata_dir.join(problem_data.id.to_string());
-    let sid = sub_info.id.clone();
+    let sid = sub_info.id;
     if extra_config.auto_sync_files {
         sync_problem_files(
-            problem_data.id.clone(),
+            problem_data.id,
             &MyUpdater {
                 judge_result: &sub_info.judge_result,
-                submission_id: sub_info.id.clone(),
+                submission_id: sub_info.id,
             },
             &http_client,
             app,
@@ -101,7 +101,7 @@ async fn handle(
             "Special judge must be used when using submit-answer problems!"
         ));
     }
-    let comparator: Box<dyn Comparator> = if &problem_data.spj_filename != "" {
+    let comparator: Box<dyn Comparator> = if !problem_data.spj_filename.is_empty() {
         let spj_filename = &problem_data.spj_filename;
         info!("SPJ filename: {}", spj_filename);
         let spj_file = this_problem_path.join(spj_filename);
@@ -397,7 +397,7 @@ async fn handle(
             &format!(
                 "{}\n评测结束于: {}\n{}\n编译时间占用: {} ms\n编译内存占用: {} MB\n退出代码: {}\n跳过了以下子任务:\n{}",
                 app.version_string,
-                chrono::Local::now().format("%F %X").to_string(),
+                chrono::Local::now().format("%F %X"),
                 compile_result.output,
                 compile_result.time_cost / 1000,
                 compile_result.memory_cost / 1024 / 1024,
@@ -419,7 +419,7 @@ async fn handle(
         .await;
     }
     info!("Judge task finished");
-    return Ok(());
+    Ok(())
 }
 
 struct MyUpdater<'a> {

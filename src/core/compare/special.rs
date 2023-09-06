@@ -81,7 +81,7 @@ impl SpecialJudgeComparator {
                 run_result.output
             ));
         }
-        return Ok(());
+        Ok(())
     }
     async fn my_compare(
         &self,
@@ -155,16 +155,18 @@ impl SpecialJudgeComparator {
                 .await
                 .map_err(|e| anyhow!("Failed to read score: {}", e))?
         };
-        let score = i64::from_str_radix(score_str.trim(), 10)
+        let score = score_str
+            .trim()
+            .parse::<i64>()
             .map_err(|e| anyhow!("Failed to parse score: {}", e))?;
 
-        if score < 0 || score > 100 {
+        if !(0..=100).contains(&score) {
             return Err(anyhow!("Invalid score: {}", score));
         }
-        return Ok(CompareResult {
+        Ok(CompareResult {
             message,
             score: (score as f64 / 100.0 * (full_score as f64)).floor() as i64,
-        });
+        })
     }
     pub fn try_new(
         spj_file: &Path,

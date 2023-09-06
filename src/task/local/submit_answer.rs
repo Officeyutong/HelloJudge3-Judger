@@ -66,5 +66,5 @@ pub async fn handle_submit_answer(
             .message
             .push_str(&format!("Missing file: {}", output_file_name));
     }
-    return Ok(());
+    Ok(())
 }

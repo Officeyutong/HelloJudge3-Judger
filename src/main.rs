@@ -73,7 +73,7 @@ async fn main() -> ResultType<()> {
     if !data_dir.exists() {
         std::fs::create_dir(&data_dir).expect("Failed to create data dir");
     }
-    let task_count = config.max_tasks_sametime.clone();
+    let task_count = config.max_tasks_sametime;
     let app_state = AppState {
         config,
         file_dir_locks: tokio::sync::Mutex::new(HashMap::default()),
@@ -103,5 +103,5 @@ async fn main() -> ResultType<()> {
     info!("{}", app_state.version_string);
     info!("Started!");
     celery_app.consume().await.unwrap();
-    return Ok(());
+    Ok(())
 }

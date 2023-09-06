@@ -52,7 +52,7 @@ pub async fn update_status(
                 des.message.unwrap_or("<Not available>".to_string())
             ));
         }
-        return Ok(());
+        Ok(())
     };
     let ret: ResultType<()> = handle.await;
     if let Err(e) = ret {
@@ -95,7 +95,7 @@ pub async fn get_problem_data(
     let problem_data = problem_data_pack
         .data
         .ok_or(anyhow!("Missing data field!"))?;
-    return Ok(problem_data);
+    Ok(problem_data)
 }
 #[derive(Deserialize)]
 pub struct ProblemFile {
@@ -260,6 +260,6 @@ pub fn sync_problem_files<'a>(
                 info!("Success: {}", file.name);
             }
         }
-        return Ok(());
+        Ok(())
     }
 }

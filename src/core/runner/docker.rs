@@ -118,13 +118,11 @@ pub async fn execute_in_docker(
             .status
             .unwrap_or(bollard::models::ContainerStateStatusEnum::EMPTY)
         {
-        } else {
-            if let Err(e) = docker_client
-                .kill_container::<&str>(container.id.as_str(), None)
-                .await
-            {
-                error!("Failed to kill container: {}", e);
-            }
+        } else if let Err(e) = docker_client
+            .kill_container::<&str>(container.id.as_str(), None)
+            .await
+        {
+            error!("Failed to kill container: {}", e);
         }
     }
     use futures_util::stream::StreamExt;
@@ -147,7 +145,7 @@ pub async fn execute_in_docker(
             .into_iter()
         {
             out.push_str(line?.to_string().as_str());
-            if out.len() > max_output_length as usize {
+            if out.len() > max_output_length {
                 out = String::from_iter(out.chars().take(max_output_length));
                 truncated = true;
                 break;
@@ -188,11 +186,11 @@ pub async fn execute_in_docker(
         memory_result = 0;
     }
     let exit_code = attr.state.ok_or(anyhow!("?????"))?.exit_code.unwrap_or(0);
-    return Ok(ExecuteResult {
+    Ok(ExecuteResult {
         exit_code: exit_code as i32,
         memory_cost: memory_result,
         time_cost: time_result,
         output,
         output_truncated: truncated,
-    });
+    })
 }

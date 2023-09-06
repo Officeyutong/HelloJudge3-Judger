@@ -32,7 +32,7 @@ pub async fn update_ide_status(app: &AppState, run_id: &str, message: &str, stat
                 parsed.message.unwrap_or("".to_string())
             ));
         }
-        return Ok(());
+        Ok(())
     };
     let ret: ResultType<()> = handle.await;
     if let Err(e) = ret {

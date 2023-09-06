@@ -20,7 +20,7 @@ unsafe fn get_current_usec() -> i64 {
         tv_usec: 0,
     };
     gettimeofday(&mut curr as *mut timeval, null_mut());
-    return curr.tv_sec * 1_000_000 + curr.tv_usec;
+    curr.tv_sec * 1_000_000 + curr.tv_usec
 }
 
 // const FILE_FLAG: *const i8 = "r".as_ptr() as *const i8;
@@ -68,7 +68,7 @@ pub unsafe fn watch_container(
             break false;
         }
         let s = std::fs::read_to_string(&tasks_file).unwrap();
-        if s.as_bytes().iter().filter(|v| **v == '\n' as u8).count() == 1 {
+        if s.as_bytes().iter().filter(|v| **v == b'\n').count() == 1 {
             break true;
         }
         // let mut fp = std::fs::File::open(&tasks_file)
@@ -90,21 +90,22 @@ pub unsafe fn watch_container(
         usleep(150);
     };
     info!("Break: should_cleanup={}", should_cleanup);
-    let usage_str = std::fs::read_to_string(&max_mem_usage_file)?
+    let usage_str = std::fs::read_to_string(max_mem_usage_file)?
         .trim()
         .to_string();
-    let memory_usage = i64::from_str_radix(&usage_str, 10)
+    let memory_usage = usage_str
+        .parse::<i64>()
         .map_err(|_| anyhow!("Failed to parse: {}", usage_str))?;
     std::fs::File::options()
         .append(true)
         .open(main_group_file)?
-        .write(tid.to_string().as_bytes())?;
+        .write_all(tid.to_string().as_bytes())?;
     if should_cleanup {
-        std::fs::remove_dir(&main_dir)
+        std::fs::remove_dir(main_dir)
             .map_err(|e| anyhow!("Failed to cleanup cgroup dir: {}", e))?;
     }
-    return Ok(WatchResult {
+    Ok(WatchResult {
         time_result,
         memory_result: memory_usage,
-    });
+    })
 }

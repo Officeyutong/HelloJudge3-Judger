@@ -27,8 +27,8 @@ fn compare(user_out: &[u8], answer: &[u8], full_score: i64) -> ResultType<Compar
         String::from_utf8(user_out.into()).map_err(|e| anyhow!("Failed to decode chars: {}", e))?;
     let t2 =
         String::from_utf8(answer.into()).map_err(|e| anyhow!("Failed to decode chars: {}", e))?;
-    let mut user_lines = t1.split("\n").collect::<Vec<&str>>();
-    let mut answer_lines = t2.split("\n").collect::<Vec<&str>>();
+    let mut user_lines = t1.split('\n').collect::<Vec<&str>>();
+    let mut answer_lines = t2.split('\n').collect::<Vec<&str>>();
     while !user_lines.is_empty() && user_lines.last().unwrap().trim_end() == "" {
         user_lines.pop();
     }
@@ -57,8 +57,8 @@ fn compare(user_out: &[u8], answer: &[u8], full_score: i64) -> ResultType<Compar
             });
         }
     }
-    return Ok(CompareResult {
+    Ok(CompareResult {
         message: "OK!".to_string(),
         score: full_score,
-    });
+    })
 }

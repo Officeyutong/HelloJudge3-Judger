@@ -96,8 +96,8 @@ pub async fn compile_program(
         update_status(app, default_status, "Compile successfully", None, sid).await;
     }
 
-    return Ok(CompileResult {
+    Ok(CompileResult {
         compile_error: false,
         execute_result,
-    });
+    })
 }

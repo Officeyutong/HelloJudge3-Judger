@@ -29,8 +29,8 @@ impl Default for JudgerConfig {
 
 impl JudgerConfig {
     pub fn suburl(&self, sub: &str) -> String {
-        let t = if sub.starts_with("/") {
-            sub.trim_start_matches("/").to_string()
+        let t = if sub.starts_with('/') {
+            sub.trim_start_matches('/').to_string()
         } else {
             sub.to_string()
         };
@@ -38,6 +38,6 @@ impl JudgerConfig {
             .unwrap()
             .join(&t)
             .unwrap();
-        return suburl.to_string();
+        suburl.to_string()
     }
 }

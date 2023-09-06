@@ -14,22 +14,20 @@ pub struct LanguageConfig {
 
 impl LanguageConfig {
     pub fn source(&self, n: &str) -> String {
-        return self.source_file.replace("{filename}", n);
+        self.source_file.replace("{filename}", n)
     }
     pub fn output(&self, n: &str) -> String {
-        return self.output_file.replace("{filename}", n);
+        self.output_file.replace("{filename}", n)
     }
     pub fn compile_s(&self, source: &str, output: &str, extra: &str) -> String {
-        return self
-            .compile
+        self.compile
             .replace("{source}", source)
             .replace("{output}", output)
-            .replace("{extra}", extra);
+            .replace("{extra}", extra)
     }
     pub fn run_s(&self, program: &str, redirect: &str) -> String {
-        return self
-            .run
+        self.run
             .replace("{program}", program)
-            .replace("{redirect}", redirect);
+            .replace("{redirect}", redirect)
     }
 }

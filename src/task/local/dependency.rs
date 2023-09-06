@@ -59,9 +59,9 @@ impl DependencyGraph {
                         anyhow!("Invalid subtask name `{}` in dependency json!", v)
                     })?;
                     // 存在边u->v
-                    graph[*u_idx as usize].push(*v_idx);
-                    rev_graph[*v_idx as usize].push(*u_idx);
-                    outdeg[*u_idx as usize] += 1;
+                    graph[*u_idx].push(*v_idx);
+                    rev_graph[*v_idx].push(*u_idx);
+                    outdeg[*u_idx] += 1;
                 }
             }
         }
@@ -85,9 +85,9 @@ impl DependencyGraph {
         if let Some(v) = self.heap.peek() {
             let idx = v.0;
 
-            return Some(self.index_to_name[idx].clone());
+            Some(self.index_to_name[idx].clone())
         } else {
-            return None;
+            None
         }
     }
     pub fn report(&mut self, ok: bool) {
@@ -114,7 +114,7 @@ impl DependencyGraph {
                         "Skipped for failing `{}`",
                         self.graph[i]
                             .iter()
-                            .filter(|s| self.dropped[**s] == false)
+                            .filter(|s| !self.dropped[**s])
                             .map(|v| self.index_to_name[*v].clone())
                             .collect::<Vec<_>>()
                             .join(", ")
@@ -122,6 +122,6 @@ impl DependencyGraph {
                 })
             }
         }
-        return result;
+        result
     }
 }

@@ -35,5 +35,5 @@ pub async fn get_language_config(
             parsed.message.unwrap_or(String::from("<>"))
         ));
     }
-    return Ok(parsed.data.ok_or(anyhow!("Missing field!"))?);
+    parsed.data.ok_or(anyhow!("Missing field!"))
 }

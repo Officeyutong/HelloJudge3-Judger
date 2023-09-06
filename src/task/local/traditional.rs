@@ -118,9 +118,9 @@ pub async fn handle_traditional(
                 .map_err(|e| anyhow!("Failed to read answer data: {}, {}", testcase.output, e))?;
             let CompareResult { score, message } = match comparator
                 .compare(
-                    Arc::new(user_out.into()),
-                    Arc::new(answer_data.into()),
-                    Arc::new(input_data.into()),
+                    Arc::new(user_out),
+                    Arc::new(answer_data),
+                    Arc::new(input_data),
                     full_score,
                 )
                 .await
@@ -139,11 +139,11 @@ pub async fn handle_traditional(
                 testcase_result.update("unaccepted", &format!("Illegal score: {}", score));
             }
             testcase_result.score = score;
-            testcase_result.message = message;  
+            testcase_result.message = message;
         }
         if testcase_result.status != "accepted" && subtask.method == "min" {
             *will_skip = true;
         }
     }
-    return Ok(());
+    Ok(())
 }

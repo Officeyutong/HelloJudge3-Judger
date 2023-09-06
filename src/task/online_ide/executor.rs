@@ -37,7 +37,7 @@ pub async fn online_ide_handler(
         update_ide_status(app_state_guard, &run_id, &err_str, "done").await;
         return Err(TaskError::UnexpectedError(err_str.clone()));
     }
-    return Ok(());
+    Ok(())
 }
 const IDE_RUN_PROG_NAME: &str = "iderun";
 const IDE_RUN_INPUT: &str = "in";
@@ -162,5 +162,5 @@ async fn handle(
     )
     .await;
     info!("Task done: {}", run_id);
-    return Ok(());
+    Ok(())
 }
