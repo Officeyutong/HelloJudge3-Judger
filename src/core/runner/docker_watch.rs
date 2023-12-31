@@ -1,7 +1,7 @@
 use std::{io::Write, ptr::null_mut};
 
 use libc::{gettid, usleep};
-use log::{error, info};
+use log::{error, info, warn};
 
 use crate::core::misc::ResultType;
 use anyhow::anyhow;
@@ -101,8 +101,9 @@ pub unsafe fn watch_container(
         .open(main_group_file)?
         .write_all(tid.to_string().as_bytes())?;
     if should_cleanup {
-        std::fs::remove_dir(main_dir)
-            .map_err(|e| anyhow!("Failed to cleanup cgroup dir: {}", e))?;
+        if let Err(e) = std::fs::remove_dir(&main_dir) {
+            warn!("Failed to cleanup cgroup dir {}: {}", main_dir, e);
+        }
     }
     Ok(WatchResult {
         time_result,
