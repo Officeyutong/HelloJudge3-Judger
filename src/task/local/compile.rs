@@ -34,6 +34,7 @@ pub async fn compile_program(
         "Compiling your program..",
         None,
         sid,
+        None,
     )
     .await;
     let app_source_file_name = lang_config.source(DEFAULT_PROGRAM_FILENAME);
@@ -85,6 +86,7 @@ pub async fn compile_program(
             ),
             Some("compile_error"),
             sid,
+            None,
         )
         .await;
         error!("Failed to compile!\n{}", execute_result.output);
@@ -93,7 +95,7 @@ pub async fn compile_program(
             execute_result,
         });
     } else {
-        update_status(app, default_status, "Compile successfully", None, sid).await;
+        update_status(app, default_status, "Compile successfully", None, sid, None).await;
     }
 
     Ok(CompileResult {

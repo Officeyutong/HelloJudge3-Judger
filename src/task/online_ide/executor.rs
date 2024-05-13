@@ -136,8 +136,7 @@ async fn handle(
         let mut file = tokio::fs::File::open(work_dir.path().join(IDE_RUN_OUTPUT))
             .await
             .map_err(|e| anyhow!("Failed to open output file: {}", e))?;
-        let mut buf = Vec::<u8>::new();
-        buf.resize(extra_config.result_length_limit as usize, 0);
+        let mut buf = vec![0; extra_config.result_length_limit as usize];
         let sread = file
             .read(&mut buf[..])
             .await

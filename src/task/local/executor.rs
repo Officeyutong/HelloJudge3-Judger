@@ -46,7 +46,7 @@ pub async fn local_judge_task_handler(
     let sid = submission_data.pointer("/id").unwrap().as_i64().unwrap();
     if let Err(e) = handle(submission_data, extra_config, app_state_guard).await {
         let err_str = format!("{}", e,);
-        update_status(app_state_guard, &BTreeMap::new(), &err_str, None, sid).await;
+        update_status(app_state_guard, &BTreeMap::new(), &err_str, None, sid, None).await;
         return Err(TaskError::UnexpectedError(err_str.clone()));
     }
     Ok(())
@@ -77,7 +77,7 @@ async fn handle(
     debug!("Raw task:\n{:#?}", submission_info);
     let sub_info = serde_json::from_value::<SubmissionInfo>(submission_info)
         .map_err(|e| anyhow!("Failed to deserialize submission info: {}", e))?;
-    info!("Received judge task:\n{:#?}", sub_info);
+    info!("Received local judge task:\n{:#?}", sub_info);
     let http_client = reqwest::Client::new();
     let problem_data = get_problem_data(&http_client, app, &sub_info).await?;
     debug!("Problem info:\n{:#?}", problem_data);
@@ -151,6 +151,7 @@ async fn handle(
         "Downloading language definition..",
         None,
         sid,
+        None,
     )
     .await;
     let lang_config = get_language_config(app, &sub_info.language, &http_client)
@@ -242,7 +243,7 @@ async fn handle(
             },
         );
     });
-    update_status(app, &judge_result, "", None, sid).await;
+    update_status(app, &judge_result, "", None, sid, None).await;
     let dep_file = this_problem_path.join(DEPENDENCY_DEFINITION_FILENAME);
 
     let dependency_info = if dep_file.exists() {
@@ -280,7 +281,7 @@ async fn handle(
     let subtask_data_by_name = HashMap::<String, &ProblemSubtask>::from_iter(
         problem_data.subtasks.iter().map(|v| (v.name.clone(), v)),
     );
-    while let Some(subtask_name) = dep_state_machine.next() {
+    while let Some(subtask_name) = dep_state_machine.next_subtask_name() {
         let subtask = subtask_data_by_name
             .get(&subtask_name)
             .ok_or_else(|| anyhow!("Failed to get subtask `{}` by name!", subtask_name))?;
@@ -297,6 +298,7 @@ async fn handle(
                 &format!("评测: 子任务 {}, 测试点 {}", subtask.name, i + 1),
                 None,
                 sid,
+                None,
             )
             .await;
             if will_skip {
@@ -406,6 +408,7 @@ async fn handle(
             ),
             None,
             sid,
+            None
         )
         .await;
     } else {
@@ -415,6 +418,7 @@ async fn handle(
             &format!("跳过了以下子任务:\n{}", skipped_subtask_message),
             None,
             sid,
+            None,
         )
         .await;
     }
@@ -437,6 +441,7 @@ impl<'a> AsyncStatusUpdater for MyUpdater<'a> {
             message,
             None,
             self.submission_id,
+            None,
         )
         .await;
     }

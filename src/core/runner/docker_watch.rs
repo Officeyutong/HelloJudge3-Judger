@@ -60,8 +60,6 @@ pub unsafe fn watch_container(
     };
     let begin = get_current_usec();
     let mut time_result: i64;
-    let mut read_buf = Vec::<u8>::new();
-    read_buf.reserve(128);
     let should_cleanup = loop {
         time_result = get_current_usec() - begin;
         if time_result >= time_limit {

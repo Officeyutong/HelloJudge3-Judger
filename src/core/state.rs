@@ -10,6 +10,7 @@ pub struct AppState {
     pub testdata_dir: PathBuf,
     pub version_string: String,
     pub task_count_lock: Arc<Semaphore>,
+    pub remote_task_count_semaphore: Arc<Semaphore>,
 }
 use lazy_static::lazy_static;
 lazy_static! {

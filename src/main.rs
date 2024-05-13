@@ -6,7 +6,10 @@ use crate::{
         misc::ResultType,
         state::{AppState, GLOBAL_APP_STATE},
     },
-    task::{local::local_judge_task_handler, online_ide::online_ide_handler},
+    task::{
+        local::local_judge_task_handler, online_ide::online_ide_handler,
+        remote::remote_judge_task_handler,
+    },
 };
 use anyhow::anyhow;
 use celery::{broker::RedisBrokerBuilder, CeleryBuilder};
@@ -74,12 +77,14 @@ async fn main() -> ResultType<()> {
         std::fs::create_dir(&data_dir).expect("Failed to create data dir");
     }
     let task_count = config.max_tasks_sametime;
+    let max_remote_task_count = config.max_remote_task_sametime;
     let app_state = AppState {
         config,
         file_dir_locks: tokio::sync::Mutex::new(HashMap::default()),
         testdata_dir: data_dir,
         version_string: format!("HelloJudge3-Judger {}", env!("CARGO_PKG_VERSION"),),
         task_count_lock: Arc::new(Semaphore::new(task_count)),
+        remote_task_count_semaphore: Arc::new(Semaphore::new(max_remote_task_count)),
     };
     *GLOBAL_APP_STATE.write().await = Some(app_state);
     let guard = GLOBAL_APP_STATE.read().await;
@@ -100,6 +105,11 @@ async fn main() -> ResultType<()> {
         .register_task::<online_ide_handler>()
         .await
         .expect("Failed to register online ide handler");
+    celery_app
+        .register_task::<remote_judge_task_handler>()
+        .await
+        .expect("Failed to register remote judge handler");
+
     info!("{}", app_state.version_string);
     info!("Started!");
     celery_app.consume().await.unwrap();

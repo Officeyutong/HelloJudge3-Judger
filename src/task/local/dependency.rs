@@ -81,7 +81,7 @@ impl DependencyGraph {
             dropped: vec![false; names.len()],
         })
     }
-    pub fn next(&mut self) -> Option<String> {
+    pub fn next_subtask_name(&mut self) -> Option<String> {
         if let Some(v) = self.heap.peek() {
             let idx = v.0;
 

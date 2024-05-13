@@ -1,6 +1,6 @@
 use std::{collections::HashSet, future::Future, sync::Arc, time::UNIX_EPOCH};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use log::{debug, error, info};
 use serde::Deserialize;
 use tokio::sync::Mutex;
@@ -14,26 +14,28 @@ pub async fn update_status(
     message: &str,
     extra_status: Option<&str>,
     submission_id: i64,
+    extra_remote_data: Option<String>,
 ) {
     let handle = async {
         let url = app.config.suburl("/api/judge/update");
+        let mut form_data = vec![
+            ("uuid", app.config.judger_uuid.clone()),
+            ("judge_result", serde_json::to_string(judge_result).unwrap()),
+            ("submission_id", submission_id.to_string()),
+            ("message", message.to_string()),
+            (
+                "extra_status",
+                extra_status
+                    .map(|v| v.to_string())
+                    .unwrap_or("".to_string()),
+            ),
+        ];
+        if let Some(v) = extra_remote_data {
+            form_data.push(("extra_information_by_remote_judge", v));
+        }
         let text_resp = reqwest::Client::new()
             .post(url)
-            .form(&[
-                ("uuid", &app.config.judger_uuid),
-                (
-                    "judge_result",
-                    &serde_json::to_string(judge_result).unwrap(),
-                ),
-                ("submission_id", &submission_id.to_string()),
-                ("message", &message.to_string()),
-                (
-                    "extra_status",
-                    &extra_status
-                        .map(|v| v.to_string())
-                        .unwrap_or("".to_string()),
-                ),
-            ])
+            .form(&form_data)
             .send()
             .await
             .map_err(|e| anyhow!("Failed to send request: {}", e))?
@@ -45,13 +47,20 @@ pub async fn update_status(
             pub code: i64,
             pub message: Option<String>,
         }
-        let des = serde_json::from_str::<Local>(&text_resp)?;
-        if des.code != 0 {
-            return Err(anyhow!(
-                "Received failing message: {}",
-                des.message.unwrap_or("<Not available>".to_string())
-            ));
+        match serde_json::from_str::<Local>(&text_resp) {
+            Ok(des) => {
+                if des.code != 0 {
+                    return Err(anyhow!(
+                        "Received failing message: {}",
+                        des.message.unwrap_or("<Not available>".to_string())
+                    ));
+                }
+            }
+            Err(e) => {
+                bail!("Invalid response from hj2 server: {}, {}", text_resp, e);
+            }
         }
+
         Ok(())
     };
     let ret: ResultType<()> = handle.await;

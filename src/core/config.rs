@@ -10,6 +10,7 @@ pub struct JudgerConfig {
     pub logging_level: String,
     pub prefetch_count: u16,
     pub max_tasks_sametime: usize,
+    pub max_remote_task_sametime: usize,
 }
 
 impl Default for JudgerConfig {
@@ -23,6 +24,7 @@ impl Default for JudgerConfig {
             logging_level: "info".to_string(),
             prefetch_count: 2,
             max_tasks_sametime: 1,
+            max_remote_task_sametime: 20,
         }
     }
 }
