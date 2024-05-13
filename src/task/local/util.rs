@@ -152,9 +152,9 @@ pub fn sync_problem_files<'a>(
         let files = parsed.data.ok_or(anyhow!("Missing files!"))?;
         let problem_lock = {
             let mut lock = app.file_dir_locks.lock().await;
-            if !lock.contains_key(&problem_id) {
+            if let std::collections::hash_map::Entry::Vacant(e) = lock.entry(problem_id) {
                 let v = Arc::new(Mutex::new(()));
-                lock.insert(problem_id, v.clone());
+                e.insert(v.clone());
                 v
             } else {
                 lock.get(&problem_id).unwrap().clone()

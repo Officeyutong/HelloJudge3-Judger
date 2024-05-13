@@ -383,7 +383,7 @@ async fn handle(
             curr_subtask_result.status = "skipped".into();
             for testcase in curr_subtask_result.testcases.iter_mut() {
                 testcase.status = "skipped".into();
-                testcase.message = reason.clone();
+                testcase.message.clone_from(reason);
             }
             buf.push_str(&item.to_string());
             buf.push('\n');
