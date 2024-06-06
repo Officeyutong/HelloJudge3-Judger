@@ -5,7 +5,9 @@ use serde::Deserialize;
 
 pub async fn update_ide_status(app: &AppState, run_id: &str, message: &str, status: &str) {
     let handle = async {
-        let text_resp = reqwest::Client::new()
+        let text_resp = reqwest::Client::builder()
+            .pool_max_idle_per_host(0)
+            .build()?
             .post(app.config.suburl("/api/ide/update"))
             .form(&[
                 ("uuid", app.config.judger_uuid.as_str()),

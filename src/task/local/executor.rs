@@ -78,7 +78,9 @@ async fn handle(
     let sub_info = serde_json::from_value::<SubmissionInfo>(submission_info)
         .map_err(|e| anyhow!("Failed to deserialize submission info: {}", e))?;
     info!("Received local judge task:\n{:#?}", sub_info);
-    let http_client = reqwest::Client::new();
+    let http_client = reqwest::Client::builder()
+        .pool_max_idle_per_host(0)
+        .build()?;
     let problem_data = get_problem_data(&http_client, app, &sub_info).await?;
     debug!("Problem info:\n{:#?}", problem_data);
     let this_problem_path = app.testdata_dir.join(problem_data.id.to_string());

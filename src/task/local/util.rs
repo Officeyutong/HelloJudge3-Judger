@@ -33,7 +33,9 @@ pub async fn update_status(
         if let Some(v) = extra_remote_data {
             form_data.push(("extra_information_by_remote_judge", v));
         }
-        let text_resp = reqwest::Client::new()
+        let text_resp = reqwest::Client::builder()
+            .pool_max_idle_per_host(0)
+            .build()?
             .post(url)
             .form(&form_data)
             .send()

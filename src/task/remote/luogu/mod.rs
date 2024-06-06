@@ -34,7 +34,10 @@ pub async fn handle_luogu_remote_judge(
             )
             .with_context(|| anyhow!("Unable to build auth header"))?,
         );
-        reqwest::Client::builder().default_headers(headers).build()
+        reqwest::Client::builder()
+            .default_headers(headers)
+            .pool_max_idle_per_host(0)
+            .build()
     }
     .with_context(|| anyhow!("Unable to build client"))?;
     let track_data = serde_json::to_string(&LuoguTrackData {

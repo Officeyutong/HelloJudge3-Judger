@@ -53,7 +53,9 @@ async fn handle(
 ) -> ResultType<()> {
     info!("Received IDE run task: {}", run_id);
     info!("Extra config: {:#?}", extra_config);
-    let http_client = reqwest::Client::new();
+    let http_client = reqwest::Client::builder()
+        .pool_max_idle_per_host(0)
+        .build()?;
     let work_dir = tempdir().map_err(|e| anyhow!("Failed to create temporary directory: {}", e))?;
     update_ide_status(
         app,
