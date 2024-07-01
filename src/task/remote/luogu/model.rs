@@ -1,5 +1,7 @@
+#![allow(unused)]
 use std::collections::BTreeMap;
 
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use serde_repr::Deserialize_repr;
 
@@ -38,6 +40,7 @@ impl LuoguJudgeResponse {
         submission_id: i64,
         extra_remote_data: Option<String>,
     ) -> bool {
+        debug!("Updating hj2 status using : {:#?}", self.data);
         if let Some(ref judge_data) = self.data.judge {
             // 已经有运行结果了
             // 是waiting或者judging，代表还在评测
@@ -74,19 +77,43 @@ impl LuoguJudgeResponse {
             } else {
                 String::default()
             };
-            update_status(
-                app,
-                &subtask_results,
-                &compile_message,
-                if should_continue {
-                    Some(judge_data.status.to_hj2_status())
+            // If compilation failed..
+            let compilation_failed = if let Some(ref comp_data) = self.data.compile {
+                if !comp_data.success {
+                    info!("Failed to compile!");
+                    info!("{:#?}", comp_data);
+                    true
                 } else {
-                    None
-                },
-                submission_id,
-                extra_remote_data,
-            )
-            .await;
+                    false
+                }
+            } else {
+                false
+            };
+            if compilation_failed {
+                update_status(
+                    app,
+                    &subtask_results,
+                    &compile_message,
+                    Some("compile_error"),
+                    submission_id,
+                    extra_remote_data,
+                )
+                .await;
+            } else {
+                update_status(
+                    app,
+                    &subtask_results,
+                    &compile_message,
+                    if should_continue {
+                        Some(judge_data.status.to_hj2_status())
+                    } else {
+                        None
+                    },
+                    submission_id,
+                    extra_remote_data,
+                )
+                .await;
+            }
             should_continue
         } else {
             // 还没有运行
