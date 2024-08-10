@@ -804,7 +804,6 @@ dependencies = [
  "libc",
  "log",
  "lzma-sys",
- "openssl",
  "regex",
  "reqwest",
  "serde",

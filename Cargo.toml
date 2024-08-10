@@ -19,14 +19,13 @@ lazy_static = "1.4.0"
 libc = "0.2.119"
 log = "0.4.14"
 regex = "1.5.4"
-reqwest = { version = "0.11.9", features = ["json"] }
+reqwest = { version = "0.11.9", features = ["json", "native-tls-vendored"] }
 serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.79"
 serde_yaml = "0.8.23"
 tempfile = "3.3.0"
 tokio = "1.17.0"
 url = "2.2.2"
-openssl = { version = "0.10.38", features = ["vendored"] }
 lzma-sys = { version = "0.1.20", features = ["static"] }
 http-auth-basic = "0.3.3"
 serde_repr = "0.1.19"
