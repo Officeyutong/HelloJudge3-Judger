@@ -66,6 +66,11 @@ async fn main() -> ResultType<()> {
         .map_err(|_| anyhow!("Invalid loggine level: {}", config.logging_level))?
         .format(my_log_format)
         .log_to_file(FileSpec::default().directory("logs").basename("hj3-judger"))
+        .rotate(
+            flexi_logger::Criterion::Size(1 << 20),
+            flexi_logger::Naming::TimestampsDirect,
+            flexi_logger::Cleanup::Never,
+        )
         .duplicate_to_stdout(Duplicate::All)
         .start()
         .map_err(|e| anyhow!("Failed to start logger!\n{}", e))?;
