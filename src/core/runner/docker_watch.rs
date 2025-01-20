@@ -25,8 +25,8 @@ unsafe fn get_current_usec() -> i64 {
 
 // const FILE_FLAG: *const i8 = "r".as_ptr() as *const i8;
 // const FORMAT_STR: *const i8 = "%lld".as_ptr() as *const i8;
-// # Safety
-// It's very safe!
+/// # Safety
+/// It's very safe!
 pub unsafe fn watch_container(
     _pid: i32,
     time_limit: i64,

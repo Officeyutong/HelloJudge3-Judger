@@ -17,7 +17,7 @@ use crate::{
 use super::model::RemoteJudgeConfig;
 use anyhow::anyhow;
 mod model;
-
+static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 pub async fn handle_luogu_remote_judge(
     config: &RemoteJudgeConfig,
     app: &AppState,
@@ -37,6 +37,7 @@ pub async fn handle_luogu_remote_judge(
         reqwest::Client::builder()
             .default_headers(headers)
             .pool_max_idle_per_host(0)
+            .user_agent(APP_USER_AGENT)
             .build()
     }
     .with_context(|| anyhow!("Unable to build client"))?;
@@ -100,7 +101,7 @@ pub async fn handle_luogu_remote_judge(
         if !resp_status.is_success() {
             error!(
                 "{:#?}",
-                resp.json()
+                resp.json::<serde_json::Value>()
                     .await
                     .with_context(|| anyhow!("Unable to decode json"))?
             );
