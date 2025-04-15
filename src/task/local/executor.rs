@@ -433,7 +433,7 @@ struct MyUpdater<'a> {
     pub submission_id: i64,
 }
 #[async_trait::async_trait]
-impl<'a> AsyncStatusUpdater for MyUpdater<'a> {
+impl AsyncStatusUpdater for MyUpdater<'_> {
     async fn update(&self, message: &str) {
         let guard = GLOBAL_APP_STATE.read().await;
         let app_state_guard = guard.as_ref().unwrap();

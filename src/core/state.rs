@@ -1,4 +1,8 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{atomic::AtomicU64, Arc},
+};
 
 use tokio::sync::{Mutex, RwLock, Semaphore};
 
@@ -11,6 +15,7 @@ pub struct AppState {
     pub version_string: String,
     pub task_count_lock: Arc<Semaphore>,
     pub remote_task_count_semaphore: Arc<Semaphore>,
+    pub last_report_luogu_quota: AtomicU64,
 }
 use lazy_static::lazy_static;
 lazy_static! {

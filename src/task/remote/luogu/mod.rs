@@ -2,14 +2,15 @@ use std::{collections::BTreeMap, time::Duration};
 
 use anyhow::{bail, Context};
 use http_auth_basic::Credentials;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
+use model::LuoguQuotaAvailableResponse;
 use reqwest::header;
 use serde_json::json;
 
 use crate::{
-    core::state::AppState,
+    core::state::{AppState, GLOBAL_APP_STATE},
     task::{
-        local::util::update_status,
+        local::util::{report_luogu_quota, update_status},
         remote::luogu::model::{LuoguJudgeResponse, LuoguTrackData, SimpleResponse},
     },
 };
@@ -152,7 +153,66 @@ pub async fn handle_luogu_remote_judge(
             Some(request_id.clone()),
         )
         .await;
+        info!("Remote submission timed out: {}", config.submission_id);
+        return Ok(());
     }
     info!("Remote submission done: {}", config.submission_id);
+    {
+        let guard = GLOBAL_APP_STATE.read().await;
+        let global_state = guard.as_ref().unwrap();
+        let last_report = global_state
+            .last_report_luogu_quota
+            .load(std::sync::atomic::Ordering::SeqCst);
+        let min_interval = global_state.config.luogu_quota_report_min_interval;
+        let now_timestamp = chrono::Local::now().timestamp() as u64;
+        if last_report + min_interval < now_timestamp {
+            let result: Result<LuoguQuotaAvailableResponse, anyhow::Error> = async {
+                info!("Fetching remaining luogu quota..");
+                client
+                    .get("https://open-v1.lgapi.cn/judge/quotaAvailable")
+                    .send()
+                    .await
+                    .with_context(|| anyhow!("Unable to send requets to query quota"))?
+                    .json::<LuoguQuotaAvailableResponse>()
+                    .await
+                    .with_context(|| anyhow!("Unable to decode response of quote available"))
+            }
+            .await;
+
+            let result = match result {
+                Err(e) => {
+                    warn!("Failed to query luogu remaining quota: {:?}", e);
+                    return Ok(());
+                }
+                Ok(o) => o,
+            };
+            info!("Luogu quota: {:?}", result);
+            let (available, total) = result.available_points_and_total_points();
+            if let Err(e) = report_luogu_quota(global_state, available, total).await {
+                warn!("Failed to report luogu quota to server: {:?}", e);
+                return Ok(());
+            }
+            global_state.last_report_luogu_quota.fetch_max(
+                chrono::Local::now().timestamp() as u64,
+                std::sync::atomic::Ordering::SeqCst,
+            );
+            info!(
+                "Updated last_report_luogu_quota to {:?}",
+                chrono::DateTime::from_timestamp(
+                    global_state
+                        .last_report_luogu_quota
+                        .load(std::sync::atomic::Ordering::SeqCst) as _,
+                    0
+                )
+            );
+        } else {
+            info!(
+                "Ignoring reporting luogu quota, last report = {:?}, min_interval = {}, now = {:?}",
+                chrono::DateTime::from_timestamp(last_report as i64, 0),
+                min_interval,
+                chrono::DateTime::from_timestamp(now_timestamp as i64, 0)
+            );
+        }
+    }
     Ok(())
 }

@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+fn default_luogu_quota_report_min_interval() -> u64 {
+    60
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct JudgerConfig {
     pub broker_url: String,
@@ -11,6 +15,8 @@ pub struct JudgerConfig {
     pub prefetch_count: u16,
     pub max_tasks_sametime: usize,
     pub max_remote_task_sametime: usize,
+    #[serde(default = "default_luogu_quota_report_min_interval")]
+    pub luogu_quota_report_min_interval: u64,
 }
 
 impl Default for JudgerConfig {
@@ -25,6 +31,7 @@ impl Default for JudgerConfig {
             prefetch_count: 2,
             max_tasks_sametime: 1,
             max_remote_task_sametime: 20,
+            luogu_quota_report_min_interval: default_luogu_quota_report_min_interval(),
         }
     }
 }

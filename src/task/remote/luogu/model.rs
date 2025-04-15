@@ -246,3 +246,43 @@ pub struct LuoguCompileResult {
     pub message: String,
     pub opt2: bool,
 }
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct LuoguQuotaAvailablePointEntry {
+    pub max: u64,
+    pub used: u64,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct LuoguQuotaAvailableEntry {
+    #[serde(rename = "availablePoints")]
+    pub available_points: u64,
+    #[serde(rename = "createTime")]
+    pub create_time: u64,
+    #[serde(rename = "validAfter")]
+    pub valid_after: u64,
+    #[serde(rename = "expireTime")]
+    pub expire_time: u64,
+    pub points: LuoguQuotaAvailablePointEntry,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct LuoguQuotaAvailableResponse {
+    pub quotas: Vec<LuoguQuotaAvailableEntry>,
+}
+
+impl LuoguQuotaAvailableResponse {
+    pub fn available_points_and_total_points(&self) -> (u64, u64) {
+        let mut available = 0;
+        let mut total = 0;
+        let now_timestamp = chrono::Local::now().timestamp() as u64;
+
+        for entry in self.quotas.iter() {
+            if entry.expire_time >= now_timestamp && entry.valid_after <= now_timestamp {
+                available += entry.available_points;
+                total += entry.points.max;
+            }
+        }
+        (available, total)
+    }
+}

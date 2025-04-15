@@ -3,11 +3,54 @@ use std::{collections::HashSet, sync::Arc, time::UNIX_EPOCH};
 use anyhow::{anyhow, bail};
 use log::{debug, error, info};
 use serde::Deserialize;
+use serde_json::json;
 use tokio::sync::Mutex;
 
 use crate::core::{misc::ResultType, state::AppState};
 
 use super::model::{ProblemInfo, SubmissionInfo, SubmissionJudgeResult};
+
+pub async fn report_luogu_quota(
+    state: &AppState,
+    available: u64,
+    total: u64,
+) -> anyhow::Result<()> {
+    let url = state.config.suburl("/api/judge/report_luogu_quota");
+    let text_resp = reqwest::Client::builder()
+        .pool_max_idle_per_host(0)
+        .build()?
+        .post(url)
+        .json(&json!({
+            "available": available,
+            "total": total,
+            "uuid":            state.config.judger_uuid.clone()
+        }))
+        .send()
+        .await
+        .map_err(|e| anyhow!("Failed to send request: {}", e))?
+        .text()
+        .await
+        .map_err(|e| anyhow!("Failed to read response: {}", e))?;
+    #[derive(Deserialize)]
+    struct Local {
+        pub code: i64,
+        pub message: Option<String>,
+    }
+    match serde_json::from_str::<Local>(&text_resp) {
+        Ok(des) => {
+            if des.code != 0 {
+                return Err(anyhow!(
+                    "Received failing message: {}",
+                    des.message.unwrap_or("<Not available>".to_string())
+                ));
+            }
+        }
+        Err(e) => {
+            bail!("Invalid response from hj2 server: {}, {}", text_resp, e);
+        }
+    }
+    Ok(())
+}
 pub async fn update_status(
     app: &AppState,
     judge_result: &SubmissionJudgeResult,

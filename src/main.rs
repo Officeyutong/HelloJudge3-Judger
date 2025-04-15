@@ -1,3 +1,4 @@
+#![allow(non_local_definitions)]
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use crate::{
@@ -90,6 +91,7 @@ async fn main() -> ResultType<()> {
         version_string: format!("HelloJudge3-Judger {}", env!("CARGO_PKG_VERSION"),),
         task_count_lock: Arc::new(Semaphore::new(task_count)),
         remote_task_count_semaphore: Arc::new(Semaphore::new(max_remote_task_count)),
+        last_report_luogu_quota: Default::default(),
     };
     *GLOBAL_APP_STATE.write().await = Some(app_state);
     let guard = GLOBAL_APP_STATE.read().await;
